@@ -240,6 +240,7 @@
               {#if showPortalDropdown}
                 <div class="portal-dropdown-menu">
                   <button class="portal-item" onclick={() => abrirPortal('https://consultaprocesos.ramajudicial.gov.co/')}>Consulta Nacional Unificada (CNU)</button>
+                  <button class="portal-item" onclick={() => abrirPortal('https://siugj.ramajudicial.gov.co/')}>SIUGJ / Rama Judicial - Consulta</button>
                   <button class="portal-item" onclick={() => abrirPortal('https://samai.consejodeestado.gov.co/')}>SAMAI (Consejo de Estado / Tribunales)</button>
                   <button class="portal-item" onclick={() => abrirPortal('https://procesojudicial.ramajudicial.gov.co/Justicia21/Administracion/Ciudadanos/frmConsulta')}>TYBA (Justicia XXI)</button>
                 </div>
