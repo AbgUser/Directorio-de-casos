@@ -1,0 +1,39 @@
+name: Compilar Instalador Windows
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    
+    steps:
+      - name: Clonar código fuente
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Configurar Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - name: Instalar dependencias del frontend
+        run: npm install
+
+      - name: Construir y Empaquetar Tauri
+        uses: tauri-apps/tauri-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: 'App - Versión ${{ github.ref_name }}'
+          releaseBody: 'Instalador ejecutable (.exe) para Windows.'
+          releaseDraft: false
+          prerelease: false
+          args: --target x86_64-pc-windows-msvc
