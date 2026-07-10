@@ -8,7 +8,12 @@ on:
 jobs:
   build-windows:
     runs-on: windows-latest
-    
+    env:
+      # Definimos las variables a nivel global para asegurar que el proceso las lea
+      OPENSSL_DIR: C:\vcpkg\installed\x64-windows-static-md
+      OPENSSL_NO_VENDOR: 1
+      VCPKG_ROOT: C:\vcpkg
+
     steps:
       - name: Clonar código fuente
         uses: actions/checkout@v4
@@ -26,7 +31,6 @@ jobs:
       - name: Instalar OpenSSL (vcpkg)
         run: |
           vcpkg install openssl:x64-windows-static-md
-          echo "VCPKG_ROOT=$env:VCPKG_INSTALLATION_ROOT" | Out-File -FilePath $env:GITHUB_ENV -Append
 
       - name: Instalar dependencias del frontend
         run: npm install
@@ -35,8 +39,6 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          OPENSSL_DIR: C:\vcpkg\installed\x64-windows-static-md
-          VCPKG_DEFAULT_TRIPLET: x64-windows-static-md
         with:
           tagName: ${{ github.ref_name }}
           releaseName: 'App - Versión ${{ github.ref_name }}'
