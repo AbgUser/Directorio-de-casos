@@ -1,0 +1,34 @@
+[package]
+name = "directorio-general-casos"
+version = "0.1.0"
+description = "Directorio General de Casos - CRM para Despacho de Abogado"
+authors = ["Despacho Jurídico"]
+edition = "2021"
+
+[lib]
+name = "directorio_general_casos_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-opener = "2"
+tauri-plugin-fs = "2"
+tauri-plugin-dialog = "2"
+tauri-plugin-notification = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+argon2 = "0.5"
+rand = "0.8"
+
+rusqlite = { version = "0.31", features = ["bundled-sqlcipher"] }
+reqwest = { version = "0.12", features = ["json", "rustls-tls"], default-features = false }
+tiny_http = "0.12"
+url = "2.5"
+chrono = { version = "0.4", features = ["serde"] }
+tokio = { version = "1", features = ["rt-multi-thread"] }
+arboard = "3.6.1"
+zip = "0.6.3"
+walkdir = "2.5.0"
