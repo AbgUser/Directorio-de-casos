@@ -87,8 +87,8 @@ pub fn db_restore_backup(state: State<'_, DbState>, source_path: &str, app_handl
         let path_str = conn.path().unwrap_or("");
         std::path::PathBuf::from(path_str)
     } else {
-        // Si no estaba inicializada, resolvemos la ruta por defecto
-        let app_dir = app_handle.path().document_dir().unwrap().join("Directorio_Casos");
+        // Si no estaba inicializada, resolvemos la ruta por defecto (la misma que usa db_init)
+        let app_dir = app_handle.path().app_data_dir().map_err(|e| e.to_string())?;
         app_dir.join("directorio_casos.db")
     };
 
@@ -370,13 +370,12 @@ pub fn db_init(app: AppHandle, state: State<'_, DbState>, password: &str) -> Res
 
     // Upgrades de columnas — cada ALTER se ejecuta individualmente porque
     // falla si la columna ya existe, y no debe bloquear las demás.
-    let _ = conn.execute_batch("ALTER TABLE honorarios_cuentas ADD COLUMN tarifa_hora REAL DEFAULT 0;");
-    let _ = conn.execute_batch("ALTER TABLE honorarios_cuentas ADD COLUMN es_estatal INTEGER NOT NULL DEFAULT 0;");
-    let _ = conn.execute_batch("ALTER TABLE honorarios_cuentas ADD COLUMN numero_contrato TEXT;");
-    let _ = conn.execute_batch("ALTER TABLE honorarios_cuentas ADD COLUMN entidad_contratante TEXT;");
-    let _ = conn.execute_batch("ALTER TABLE despacho_config ADD COLUMN plantilla_factura_path TEXT;");
     let _ = conn.execute_batch("ALTER TABLE actuaciones ADD COLUMN termino_vencimiento TEXT;");
     let _ = conn.execute_batch("ALTER TABLE actuaciones ADD COLUMN termino_completado INTEGER DEFAULT 0;");
+    
+    // Control de Notificaciones Procesales (CGP)
+    let _ = conn.execute_batch("ALTER TABLE actuaciones ADD COLUMN tipo_notificacion TEXT;");
+    let _ = conn.execute_batch("ALTER TABLE actuaciones ADD COLUMN notificacion_estado TEXT DEFAULT 'pendiente';");
 
     // Guardar la conexión en el estado
     *state.conn.lock().unwrap() = Some(conn);

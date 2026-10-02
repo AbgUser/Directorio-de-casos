@@ -1,4 +1,5 @@
 <script>
+  import { toLocalISODate } from '$lib/utils/formatters.js';
   import { onMount } from 'svelte';
   import Card from '$lib/components/ui/Card.svelte';
   import Button from '$lib/components/ui/Button.svelte';
@@ -153,7 +154,7 @@
     backupMsg = ''; backupError = '';
     
     // Obtener la fecha actual YYYYMMDD
-    const dateStr = new Date().toISOString().slice(0,10).replace(/-/g,"");
+    const dateStr = toLocalISODate().replace(/-/g,"");
     
     try {
       const destPath = await saveDialog({
@@ -431,9 +432,9 @@
   open={showRestoreConfirm} 
   title="Restaurar Copia de Seguridad"
   message="¿Estás seguro de que deseas sobrescribir la base de datos actual? Esta acción destruirá los datos actuales y los reemplazará con los del archivo seleccionado. Tendrás que reiniciar la aplicación luego."
-  confirmText="Sí, Sobrescribir Base de Datos"
-  cancelText="Cancelar"
-  danger={true}
+  confirmLabel="Sí, Sobrescribir Base de Datos"
+  cancelLabel="Cancelar"
+  variant="danger"
   onconfirm={confirmRestore}
   oncancel={() => showRestoreConfirm = false}
 />

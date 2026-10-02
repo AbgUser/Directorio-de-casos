@@ -1,3 +1,4 @@
+import { toLocalISODate } from '../utils/formatters.js';
 import { getDb } from './db.js';
 
 export async function getDashboardStats() {
@@ -57,7 +58,29 @@ export async function getAlertas() {
     WHERE a.termino_vencimiento IS NOT NULL AND a.termino_completado = 0
   `);
 
-  const eventosCombinados = [...eventos, ...actuacionesConTermino];
+  // Notificaciones procesales pendientes
+  const notificacionesPendientes = await db.select(`
+    SELECT 
+      a.id, 
+      a.caso_id, 
+      a.id as actuacion_id,
+      'Notif. ' || COALESCE(a.tipo_notificacion, '') || ': ' || substr(a.descripcion, 1, 40) as titulo, 
+      'notificacion_procesal' as tipo, 
+      COALESCE(a.termino_vencimiento, a.fecha) as fecha_inicio, 
+      NULL as hora_inicio, 
+      a.descripcion, 
+      'pendiente' as estado, 
+      c.radicado, 
+      cl.nombre_completo as cliente_display_name 
+    FROM actuaciones a
+    LEFT JOIN casos c ON a.caso_id = c.id
+    LEFT JOIN clientes cl ON c.cliente_id = cl.id
+    WHERE a.tipo = 'notificacion' 
+      AND a.notificacion_estado = 'pendiente'
+      AND c.estado = 'Activo'
+  `);
+
+  const eventosCombinados = [...eventos, ...actuacionesConTermino, ...notificacionesPendientes];
   
   // Obtenemos los feriados para cálculo
   const feriadosRows = await db.select('SELECT fecha FROM feriados');
@@ -93,7 +116,7 @@ export async function getAlertas() {
       current.setDate(current.getDate() + 1);
       while (current <= fechaEv) {
         const dayOfWeek = current.getDay();
-        const dateStr = current.toISOString().split('T')[0];
+        const dateStr = toLocalISODate(current);
         const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
         const isFeriado = feriadosSet.has(dateStr);
         

@@ -53,6 +53,7 @@
             await loadDocuments();
           } catch (e) {
             console.error('Error al subir documentos soltados:', e);
+            alert('No se pudieron agregar los documentos: ' + String(e));
           } finally {
             uploading = false;
           }
@@ -93,6 +94,7 @@
       await loadDocuments();
     } catch (e) {
       console.error('Error al subir documentos:', e);
+      alert('No se pudieron agregar los documentos: ' + String(e));
     } finally {
       uploading = false;
     }
@@ -101,9 +103,12 @@
   async function handleOpenFolder() {
     try {
       if (carpetaDocumentos) {
-        await documentoService.openInFinder(carpetaDocumentos + '/.');
+        await documentoService.openFolder(carpetaDocumentos);
       }
-    } catch (e) { console.error(e); }
+    } catch (e) {
+      console.error(e);
+      alert('No se pudo abrir la carpeta: ' + String(e));
+    }
   }
 
   async function handleOpenFile(doc) {
@@ -154,7 +159,7 @@
     <div class="docs-actions">
       <Button variant="ghost" size="sm" onclick={handleOpenFolder}>
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
-        Abrir en Finder
+        Abrir carpeta
       </Button>
       <Button variant="primary" size="sm" onclick={handleUpload} disabled={uploading}>
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
@@ -184,7 +189,7 @@
             <button class="tool-btn" onclick={() => handleOpenFile(doc)} title="Abrir archivo">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
             </button>
-            <button class="tool-btn" onclick={() => handleShowInFinder(doc)} title="Mostrar en Finder">
+            <button class="tool-btn" onclick={() => handleShowInFinder(doc)} title="Mostrar en carpeta">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
             </button>
             <button class="tool-btn" onclick={() => handlePrint(doc)} title="Imprimir">

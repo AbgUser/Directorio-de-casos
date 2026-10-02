@@ -1,3 +1,4 @@
+import { toLocalISODate } from '../utils/formatters.js';
 import { getDb } from './db.js';
 import { invoke } from '@tauri-apps/api/core';
 import * as casoService from './casoService.js';
@@ -35,7 +36,7 @@ export async function clonarYabrir(modelo, casoId, tipoActuacion) {
   const basePath = await documentDir();
   const carpetaDestino = `${basePath}/Directorio_Casos/${carpetaRelativa}`;
   
-  const today = new Date().toISOString().split('T')[0];
+  const today = toLocalISODate();
   const extension = modelo.ruta_archivo.split('.').pop();
   const nombreLimpio = tipoActuacion.replace(/[^a-zA-Z0-9]/g, '_');
   const nuevoNombre = `${today}_${nombreLimpio}.${extension}`;
@@ -47,12 +48,4 @@ export async function clonarYabrir(modelo, casoId, tipoActuacion) {
   });
   
   return result; 
-}
-
-export async function verificarYLimpiar(rutaArchivo, mtimeOriginal, sizeOriginal) {
-  return await invoke('verificar_y_limpiar_clon', {
-    rutaArchivo,
-    mtimeOriginal,
-    sizeOriginal
-  });
 }

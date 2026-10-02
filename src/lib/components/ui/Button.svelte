@@ -5,7 +5,8 @@
     disabled = false,
     type = 'button',
     onclick = undefined,
-    children
+    children,
+    ...rest
   } = $props();
 </script>
 
@@ -14,6 +15,7 @@
   {type}
   {disabled}
   {onclick}
+  {...rest}
 >
   {@render children()}
 </button>

@@ -1,3 +1,4 @@
+import { toLocalISODate } from '../utils/formatters.js';
 import { getDb } from './db.js';
 
 /**
@@ -20,8 +21,8 @@ export async function getFeriados() {
 export async function calcularTermino(fechaInicio, dias, tipoDias = 'habiles') {
   if (tipoDias === 'calendario') {
     const d = new Date(fechaInicio + 'T00:00:00');
-    d.setDate(d.getDate() + dias);
-    return d.toISOString().split('T')[0];
+    d.setDate(d.getDate() + Number(dias));
+    return toLocalISODate(d);
   }
 
   // Cargar feriados de la BD
@@ -38,7 +39,7 @@ export async function calcularTermino(fechaInicio, dias, tipoDias = 'habiles') {
 
   while (diasSumados < dias) {
     const dayOfWeek = current.getDay(); // 0 = Domingo, 6 = Sábado
-    const dateStr = current.toISOString().split('T')[0];
+    const dateStr = toLocalISODate(current);
 
     const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
     const isFeriado = feriadosSet.has(dateStr);
@@ -52,7 +53,7 @@ export async function calcularTermino(fechaInicio, dias, tipoDias = 'habiles') {
     }
   }
 
-  return current.toISOString().split('T')[0];
+  return toLocalISODate(current);
 }
 
 export async function getEventosByCaso(casoId) {

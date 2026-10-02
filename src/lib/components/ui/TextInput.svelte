@@ -6,7 +6,9 @@
     type = 'text',
     required = false,
     error = '',
-    id = undefined
+    id = undefined,
+    multiline = false,
+    rows = 3
   } = $props();
 
   let inputId = $derived(id || `input-${label.toLowerCase().replace(/\s+/g, '-')}`);
@@ -19,14 +21,25 @@
       {#if required}<span class="required-mark">*</span>{/if}
     </label>
   {/if}
-  <input
-    {type}
-    id={inputId}
-    class="text-input"
-    {placeholder}
-    {required}
-    bind:value
-  />
+  {#if multiline}
+    <textarea
+      id={inputId}
+      class="text-input"
+      {rows}
+      {placeholder}
+      {required}
+      bind:value
+    ></textarea>
+  {:else}
+    <input
+      {type}
+      id={inputId}
+      class="text-input"
+      {placeholder}
+      {required}
+      bind:value
+    />
+  {/if}
   {#if error}
     <span class="text-input-error">{error}</span>
   {/if}
@@ -71,6 +84,10 @@
   .text-input:focus {
     border-color: var(--accent-blue);
     box-shadow: var(--shadow-glow-blue);
+  }
+
+  textarea.text-input {
+    resize: vertical;
   }
 
   .has-error .text-input {

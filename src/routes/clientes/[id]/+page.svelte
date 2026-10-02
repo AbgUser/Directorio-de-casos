@@ -65,9 +65,9 @@
   open={showDeleteConfirm} 
   title="Eliminar Cliente Permanentemente"
   message="¿Estás seguro de que deseas eliminar permanentemente a este cliente? Esta acción no se puede deshacer."
-  confirmText="Sí, Eliminar Cliente"
-  cancelText="Cancelar"
-  danger={true}
+  confirmLabel="Sí, Eliminar Cliente"
+  cancelLabel="Cancelar"
+  variant="danger"
   onconfirm={confirmDeleteCliente}
   oncancel={() => showDeleteConfirm = false}
 />

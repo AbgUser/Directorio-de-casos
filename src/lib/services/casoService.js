@@ -145,7 +145,7 @@ export async function update(id, data) {
     'juzgado', 'contraparte', 'estado',
     'descripcion', 'notas_internas',
     'fecha_inicio', 'fecha_terminacion',
-    'categoria_expediente'
+    'categoria_expediente', 'expediente_url'
   ];
 
   for (const field of allowedFields) {

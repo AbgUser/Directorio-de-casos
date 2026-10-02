@@ -4,6 +4,22 @@ import { documentDir, join, tempDir } from '@tauri-apps/api/path';
 import { getConfig } from './configService.js';
 
 /**
+ * Limpia un texto para la fuente estándar de pdf-lib (WinAnsi):
+ * quita saltos de línea y caracteres que la fuente no puede dibujar
+ * (emojis, flechas, etc.), que de lo contrario hacen fallar todo el PDF.
+ * @param {any} text
+ * @returns {string}
+ */
+function pdfSafe(text) {
+  return String(text ?? '')
+    .replace(/[\r\n\t]+/g, ' ')
+    .replace(/[\u2018\u2019]/g, "'")
+    .replace(/[\u201C\u201D]/g, '"')
+    .replace(/[\u2013\u2014]/g, '-')
+    .replace(/[^\x20-\x7E\u00A0-\u00FF\u2022\u20AC]/g, '');
+}
+
+/**
  * Genera un PDF de reporte utilizando un template.pdf existente.
  * Si no encuentra el template, genera uno simple.
  *
@@ -33,12 +49,14 @@ export async function generateReportePDF(caso, cliente, actuaciones = [], termin
       const existingPdfBytes = new Uint8Array(pdfBytesArray);
       pdfDoc = await PDFDocument.load(existingPdfBytes);
     } catch (e) {
-      console.error('Error crítico al leer o procesar el archivo de plantilla con pdf-lib:', e);
-      throw new Error('No se encontró el template base. Ve a Configuración y carga el PDF del membrete del despacho.');
+      // Sin membrete: generar el reporte sobre una hoja carta en blanco.
+      console.warn('No se encontró template_membrete.pdf; se usa una hoja en blanco.', e);
+      pdfDoc = await PDFDocument.create();
+      pdfDoc.addPage([612, 792]);
     }
 
     const pages = pdfDoc.getPages();
-    const page = pages[0];
+    let page = pages[0];
     const { width, height } = page.getSize();
     
     // Configuración de tipografía
@@ -48,24 +66,24 @@ export async function generateReportePDF(caso, cliente, actuaciones = [], termin
     const sizeText = 11;
 
     // 2. Escribir Datos del Cliente
-    page.drawText(`CLIENTE: ${cliente.nombre_completo || cliente.razon_social}`, { x: margin, y: yOffset, size: sizeTitle });
+    page.drawText(`CLIENTE: ${pdfSafe(cliente.nombre_completo || cliente.razon_social)}`, { x: margin, y: yOffset, size: sizeTitle });
     yOffset -= 20;
-    page.drawText(`Identificación: ${cliente.identificacion || ''}`, { x: margin, y: yOffset, size: sizeText });
+    page.drawText(`Identificación: ${pdfSafe(cliente.identificacion || '')}`, { x: margin, y: yOffset, size: sizeText });
     yOffset -= 20;
-    page.drawText(`Contacto: ${cliente.telefono || ''} | ${cliente.email || ''}`, { x: margin, y: yOffset, size: sizeText });
+    page.drawText(`Contacto: ${pdfSafe(cliente.telefono || '')} | ${pdfSafe(cliente.email || '')}`, { x: margin, y: yOffset, size: sizeText });
     
     yOffset -= 40;
 
     // 3. Escribir Datos del Caso
-    page.drawText(`EXPEDIENTE: ${caso.radicado || caso.slug}`, { x: margin, y: yOffset, size: sizeTitle });
+    page.drawText(`EXPEDIENTE: ${pdfSafe(caso.radicado || caso.slug)}`, { x: margin, y: yOffset, size: sizeTitle });
     yOffset -= 20;
-    page.drawText(`Tipo de Proceso: ${caso.tipo_proceso || 'N/A'}`, { x: margin, y: yOffset, size: sizeText });
+    page.drawText(`Tipo de Proceso: ${pdfSafe(caso.tipo_proceso || 'N/A')}`, { x: margin, y: yOffset, size: sizeText });
     yOffset -= 20;
-    page.drawText(`Despacho / Juzgado: ${caso.juzgado || 'N/A'}`, { x: margin, y: yOffset, size: sizeText });
+    page.drawText(`Despacho / Juzgado: ${pdfSafe(caso.juzgado || 'N/A')}`, { x: margin, y: yOffset, size: sizeText });
     yOffset -= 20;
-    page.drawText(`Contraparte: ${caso.contraparte || 'N/A'}`, { x: margin, y: yOffset, size: sizeText });
+    page.drawText(`Contraparte: ${pdfSafe(caso.contraparte || 'N/A')}`, { x: margin, y: yOffset, size: sizeText });
     yOffset -= 20;
-    page.drawText(`Estado Actual: ${caso.estado || 'Activo'}`, { x: margin, y: yOffset, size: sizeText });
+    page.drawText(`Estado Actual: ${pdfSafe(caso.estado || 'Activo')}`, { x: margin, y: yOffset, size: sizeText });
 
     yOffset -= 40;
 
@@ -78,11 +96,12 @@ export async function generateReportePDF(caso, cliente, actuaciones = [], termin
       for (let i = 0; i < maxAct; i++) {
         const act = actuaciones[i];
         if (yOffset < 50) {
-           // Si se acaba la página, agregar otra (solo básico para este ejemplo)
-           const newPage = pdfDoc.addPage();
+           // Si se acaba la página, continuar en una nueva
+           page = pdfDoc.addPage([width, height]);
            yOffset = height - 50;
         }
-        page.drawText(`• ${act.fecha}: ${act.descripcion.substring(0, 80)}${act.descripcion.length > 80 ? '...' : ''}`, { 
+        const desc = pdfSafe(act.descripcion);
+        page.drawText(`• ${pdfSafe(act.fecha)}: ${desc.substring(0, 80)}${desc.length > 80 ? '...' : ''}`, { 
           x: margin + 10, y: yOffset, size: sizeText 
         });
         yOffset -= 20;
@@ -93,7 +112,7 @@ export async function generateReportePDF(caso, cliente, actuaciones = [], termin
     const pdfBytes = await pdfDoc.save();
     
     const osTempDir = await tempDir();
-    const fileName = `Reporte_Expediente_${caso.radicado || caso.id}.pdf`;
+    const fileName = `Reporte_Expediente_${String(caso.radicado || caso.id).replace(/[\\/:*?"<>|]/g, '_')}.pdf`;
     const outputPath = await join(osTempDir, fileName);
 
     await invoke('write_file_bytes', { path: outputPath, bytes: Array.from(pdfBytes) });

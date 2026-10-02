@@ -28,11 +28,13 @@ export async function create(data) {
       caso_id, fecha, tipo, descripcion,
       fecha_notificacion, genera_termino, termino_vencimiento,
       dias_termino, tipo_dias, archivos_vinculados,
+      tipo_notificacion, notificacion_estado,
       created_at, updated_at
     ) VALUES (
       $1, $2, $3, $4,
       $5, $6, $7,
       $8, $9, $10,
+      $11, $12,
       datetime('now'), datetime('now')
     )`,
     [
@@ -45,7 +47,9 @@ export async function create(data) {
       data.termino_vencimiento || null,
       data.dias_termino || null,
       data.tipo_dias || null,
-      archivosJson
+      archivosJson,
+      data.tipo_notificacion || null,
+      data.notificacion_estado || null
     ]
   );
   return result.lastInsertId;
@@ -65,7 +69,8 @@ export async function update(id, data) {
   const allowedFields = [
     'fecha', 'tipo', 'descripcion',
     'fecha_notificacion', 'genera_termino', 'termino_vencimiento',
-    'dias_termino', 'tipo_dias', 'archivos_vinculados'
+    'dias_termino', 'tipo_dias', 'archivos_vinculados',
+    'tipo_notificacion', 'notificacion_estado'
   ];
 
   for (const field of allowedFields) {

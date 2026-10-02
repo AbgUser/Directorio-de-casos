@@ -8,3 +8,6 @@ node_modules
 !.env.example
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
+
+# Entorno de Python (no forma parte de la app)
+venv/

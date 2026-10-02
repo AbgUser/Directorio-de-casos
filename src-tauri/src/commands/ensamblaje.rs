@@ -39,7 +39,7 @@ pub fn clonar_y_abrir_modelo(
     carpeta_destino: String,
     nuevo_nombre: String
 ) -> Result<(), String> {
-    let dest_dir = PathBuf::from(&carpeta_destino);
+    let dest_dir = PathBuf::from(crate::commands::filesystem::ruta_nativa(&carpeta_destino));
     if !dest_dir.exists() {
         fs::create_dir_all(&dest_dir).map_err(|e| format!("Error creando carpeta destino: {}", e))?;
     }

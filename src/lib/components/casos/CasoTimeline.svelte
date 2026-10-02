@@ -10,7 +10,7 @@
   import * as modelosService from '$lib/services/modelosService.js';
   import * as documentoService from '$lib/services/documentoService.js';
   import * as casoService from '$lib/services/casoService.js';
-  import { formatDate, getTipoActuacionLabel } from '$lib/utils/formatters.js';
+  import { formatDate, getTipoActuacionLabel, toLocalISODate, getFileName } from '$lib/utils/formatters.js';
   import { listen } from '@tauri-apps/api/event';
   import { invoke } from '@tauri-apps/api/core';
   import { documentDir } from '@tauri-apps/api/path';
@@ -42,11 +42,30 @@
   let genera_termino = $state(false);
   let termino_vencimiento = $state('');
 
+  // Control de Notificaciones Procesales
+  let tipo_notificacion = $state('');
+  let notificacion_estado = $state('pendiente');
+
   const tipoOptions = [
     {value:'auto',label:'Auto'},{value:'sentencia',label:'Sentencia'},
     {value:'notificacion',label:'Notificación'},{value:'audiencia',label:'Audiencia'},
     {value:'memorial',label:'Memorial'},{value:'anotacion',label:'Anotación'},
     {value:'otro',label:'Otro'}
+  ];
+
+  const tipoNotificacionOptions = [
+    {value:'personal', label:'Personal (Art. 291 CGP)', dias: 15, tipoDias: 'habiles'},
+    {value:'aviso', label:'Por Aviso (Art. 292 CGP)', dias: 5, tipoDias: 'habiles'},
+    {value:'estados', label:'Por Estados (Art. 295 CGP)', dias: 3, tipoDias: 'habiles'},
+    {value:'estrado', label:'Por Estrado (Art. 294 CGP)', dias: 0, tipoDias: null},
+    {value:'edicto', label:'Por Edicto (Art. 293 CGP)', dias: 5, tipoDias: 'habiles'},
+    {value:'conducta', label:'Conducta Concluyente (Art. 301 CGP)', dias: 0, tipoDias: null},
+  ];
+
+  const notifEstadoOptions = [
+    {value:'pendiente', label:'⏳ Pendiente'},
+    {value:'cumplida', label:'✅ Cumplida'},
+    {value:'fallida', label:'❌ Fallida (Requiere Aviso)'},
   ];
 
   const tipoDotColor = {
@@ -74,7 +93,7 @@
            const filePaths = event.payload?.paths || event.payload;
            if (Array.isArray(filePaths) && filePaths.length > 0) {
              archivosTemporales = [...archivosTemporales, ...filePaths.map(p => ({
-               nombre: p.split('/').pop() || p.split('\\').pop(),
+               nombre: getFileName(p),
                ruta_absoluta: p
              }))];
            }
@@ -103,9 +122,10 @@
 
   function openNewForm() {
     editingActuacion = null;
-    fecha = new Date().toISOString().split('T')[0];
+    fecha = toLocalISODate();
     tipo = 'anotacion'; descripcion = ''; fecha_notificacion = '';
     genera_termino = false; termino_vencimiento = '';
+    tipo_notificacion = ''; notificacion_estado = 'pendiente';
     selectedModeloId = '';
     archivosTemporales = [];
     showForm = true;
@@ -117,6 +137,8 @@
     descripcion = act.descripcion || ''; fecha_notificacion = act.fecha_notificacion || '';
     genera_termino = !!act.genera_termino;
     termino_vencimiento = act.termino_vencimiento || '';
+    tipo_notificacion = act.tipo_notificacion || '';
+    notificacion_estado = act.notificacion_estado || 'pendiente';
     archivosTemporales = act.archivos_vinculados && act.archivos_vinculados !== '[]' 
       ? JSON.parse(act.archivos_vinculados).map(n => ({ nombre: n, ruta_absoluta: null }))
       : [];
@@ -157,8 +179,22 @@
         termino_vencimiento: genera_termino ? termino_vencimiento : null,
         dias_termino: null,
         tipo_dias: null,
-        archivos_vinculados: JSON.stringify(nombresFinales)
+        archivos_vinculados: JSON.stringify(nombresFinales),
+        tipo_notificacion: tipo === 'notificacion' ? (tipo_notificacion || null) : null,
+        notificacion_estado: tipo === 'notificacion' ? notificacion_estado : null
       };
+
+      // Auto-calcular término si es notificación con días asociados
+      if (tipo === 'notificacion' && tipo_notificacion && !genera_termino) {
+        const notifConfig = tipoNotificacionOptions.find(n => n.value === tipo_notificacion);
+        if (notifConfig && notifConfig.dias > 0 && fecha) {
+          const fechaVenc = await calendarioService.calcularTermino(fecha, notifConfig.dias, notifConfig.tipoDias);
+          data.genera_termino = 1;
+          data.termino_vencimiento = fechaVenc;
+          data.dias_termino = notifConfig.dias;
+          data.tipo_dias = notifConfig.tipoDias;
+        }
+      }
       
       // Guardar actuación
       let actuacionId;
@@ -186,7 +222,7 @@
       const tipoLabel = tipoOptions.find(t => t.value === tipo)?.label || tipo;
       
       // Pre-calcular el nombre que Svelte/Rust generará
-      const today = new Date().toISOString().split('T')[0];
+      const today = toLocalISODate();
       const extension = modelo.ruta_archivo.split('.').pop();
       const nombreLimpio = tipoLabel.replace(/[^a-zA-Z0-9]/g, '_');
       const nuevoNombre = `${today}_${nombreLimpio}.${extension}`;
@@ -289,6 +325,18 @@
             {#if act.fecha_notificacion}
               <span class="card-notif">Notificado: {formatDate(act.fecha_notificacion)}</span>
             {/if}
+            {#if act.tipo === 'notificacion' && act.tipo_notificacion}
+              <div class="notif-status-row">
+                <Badge variant="amber">{tipoNotificacionOptions.find(n => n.value === act.tipo_notificacion)?.label || act.tipo_notificacion}</Badge>
+                {#if act.notificacion_estado === 'cumplida'}
+                  <Badge variant="teal">✅ Cumplida</Badge>
+                {:else if act.notificacion_estado === 'fallida'}
+                  <Badge variant="red">❌ Fallida</Badge>
+                {:else}
+                  <Badge variant="amber">⏳ Pendiente</Badge>
+                {/if}
+              </div>
+            {/if}
           </div>
         </div>
       {/each}
@@ -314,6 +362,49 @@
         </div>
         <Select label="Tipo" id="act_tipo" bind:value={tipo} options={tipoOptions} />
       </div>
+
+      {#if tipo === 'notificacion'}
+      <div class="notif-panel">
+        <div class="notif-panel-header">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+          <span>Control de Notificación Procesal</span>
+        </div>
+        <div class="form-row">
+          <div class="form-field">
+            <label class="field-label" for="tipo_notif">Tipo de Notificación</label>
+            <select id="tipo_notif" class="field-date" bind:value={tipo_notificacion}>
+              <option value="">-- Seleccionar --</option>
+              {#each tipoNotificacionOptions as opt}
+                <option value={opt.value}>{opt.label}</option>
+              {/each}
+            </select>
+          </div>
+          <div class="form-field">
+            <label class="field-label" for="notif_estado">Estado</label>
+            <select id="notif_estado" class="field-date" bind:value={notificacion_estado}>
+              {#each notifEstadoOptions as opt}
+                <option value={opt.value}>{opt.label}</option>
+              {/each}
+            </select>
+          </div>
+        </div>
+        {#if tipo_notificacion}
+          {@const config = tipoNotificacionOptions.find(n => n.value === tipo_notificacion)}
+          {#if config && config.dias > 0}
+            <div class="notif-hint">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+              Término automático: <strong>{config.dias} días {config.tipoDias}</strong> a partir de la fecha de la actuación.
+            </div>
+          {:else}
+            <div class="notif-hint">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+              Esta notificación es de efecto inmediato, no genera término.
+            </div>
+          {/if}
+        {/if}
+      </div>
+      {/if}
+
       <div class="form-field">
         <label class="field-label" for="act_desc">Descripción</label>
         <textarea id="act_desc" class="field-textarea" bind:value={descripcion} placeholder="Detalle de la actuación procesal..." rows="3" required></textarea>
@@ -489,5 +580,27 @@
   }
   .solventar-btn:hover {
     background: var(--accent-green-soft); color: var(--accent-green); border-color: var(--accent-green-soft);
+  }
+
+  /* Control de Notificaciones Procesales */
+  .notif-panel {
+    padding: var(--sp-3); background: var(--bg-elevated);
+    border: 1px solid var(--accent-amber); border-radius: var(--radius-md);
+    display: flex; flex-direction: column; gap: var(--sp-3);
+  }
+  .notif-panel-header {
+    display: flex; align-items: center; gap: var(--sp-2);
+    font-size: 0.8125rem; font-weight: 600; color: var(--accent-amber);
+    text-transform: uppercase; letter-spacing: 0.03em;
+  }
+  .notif-hint {
+    display: flex; align-items: center; gap: var(--sp-2);
+    font-size: 0.75rem; color: var(--text-secondary);
+    padding: var(--sp-2); background: var(--bg-surface);
+    border-radius: var(--radius-sm);
+  }
+  .notif-status-row {
+    display: flex; align-items: center; gap: var(--sp-2);
+    margin-top: var(--sp-2); flex-wrap: wrap;
   }
 </style>

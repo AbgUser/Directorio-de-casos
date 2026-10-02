@@ -1,4 +1,5 @@
 <script>
+  import { toLocalISODate } from '$lib/utils/formatters.js';
   import Modal from '$lib/components/ui/Modal.svelte';
   import TextInput from '$lib/components/ui/TextInput.svelte';
   import Select from '$lib/components/ui/Select.svelte';
@@ -71,7 +72,7 @@
     contraparte = ''; 
     estado = 'Activo'; 
     descripcion = '';
-    fecha_inicio = new Date().toISOString().split('T')[0];
+    fecha_inicio = toLocalISODate();
     error = '';
   }
 

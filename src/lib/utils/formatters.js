@@ -85,3 +85,25 @@ export function getTipoActuacionLabel(tipo) {
   const map = { auto: 'Auto', sentencia: 'Sentencia', notificacion: 'Notificación', audiencia: 'Audiencia', memorial: 'Memorial', anotacion: 'Anotación', otro: 'Otro' };
   return map[tipo] || tipo;
 }
+
+/**
+ * Devuelve la fecha en formato YYYY-MM-DD usando la zona horaria local.
+ * (toISOString() usa UTC y en Colombia adelanta un día después de las 7 p.m.)
+ * @param {Date} [date]
+ * @returns {string}
+ */
+export function toLocalISODate(date = new Date()) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+/**
+ * Extrae el nombre de archivo de una ruta (funciona con / y \).
+ * @param {string} path
+ * @returns {string}
+ */
+export function getFileName(path) {
+  return path.split(/[\\/]/).pop() || path;
+}

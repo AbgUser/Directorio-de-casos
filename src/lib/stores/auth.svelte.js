@@ -32,8 +32,6 @@ export function getAuth() {
         if (success) {
           isAuthenticated = true;
           isFirstTime = false;
-          // Guardar en keychain por defecto
-          try { await invoke('save_to_keychain', { password }); } catch (e) { console.warn('Error guardando en keychain:', e); }
           return { success: true };
         } else {
           const msg = 'No se pudo inicializar la base de datos segura.';

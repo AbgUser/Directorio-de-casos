@@ -2,7 +2,6 @@
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
   import { invoke } from '@tauri-apps/api/core';
-  import { listen } from '@tauri-apps/api/event';
   import { onDestroy } from 'svelte';
   import { remove } from '@tauri-apps/plugin-fs';
   import { openUrl } from '@tauri-apps/plugin-opener';
@@ -16,6 +15,8 @@
   import CasoAgenda from '$lib/components/casos/CasoAgenda.svelte';
   import EmptyState from '$lib/components/ui/EmptyState.svelte';
   import ConfirmDialog from '$lib/components/ui/ConfirmDialog.svelte';
+  import Modal from '$lib/components/ui/Modal.svelte';
+  import TextInput from '$lib/components/ui/TextInput.svelte';
   import * as casoService from '$lib/services/casoService.js';
   import * as clienteService from '$lib/services/clienteService.js';
   import * as actuacionService from '$lib/services/actuacionService.js';
@@ -33,6 +34,11 @@
   let showPortalDropdown = $state(false);
   let docsRef = $state(null);
 
+  // Expediente Digital URL state
+  let showExpedienteModal = $state(false);
+  let expedienteUrlInput = $state('');
+  let savingExpedienteUrl = $state(false);
+
   const tabs = [
     { id: 'info', label: 'Información' },
     { id: 'actuaciones', label: 'Actuaciones' },
@@ -47,55 +53,6 @@
     if (tabParam && tabs.find(t => t.id === tabParam)) {
       activeTab = tabParam;
     }
-  });
-
-  let unlistenDownload;
-  $effect(() => {
-    async function setupListener() {
-      if (!unlistenDownload && caso && caso.carpeta_documentos) {
-        unlistenDownload = listen('documento-descargado', async (event) => {
-          const payload = event.payload;
-          if (payload.caso_id === id) {
-            try {
-              await documentoService.registerDownloadedFile(
-                id, 
-                caso.carpeta_documentos, 
-                payload.nombre_archivo
-              );
-              
-              if (activeTab === 'documentos' && docsRef) {
-                docsRef.refresh();
-              }
-
-              // Mostrar notificación
-              import('@tauri-apps/plugin-notification').then(async ({ isPermissionGranted, requestPermission, sendNotification }) => {
-                let permissionGranted = await isPermissionGranted();
-                if (!permissionGranted) {
-                  const permission = await requestPermission();
-                  permissionGranted = permission === 'granted';
-                }
-                if (permissionGranted) {
-                  sendNotification({
-                    title: 'Documento Vinculado',
-                    body: `Se ha vinculado ${payload.nombre_archivo} al expediente.`
-                  });
-                }
-              });
-            } catch(e) {
-              console.error(e);
-            }
-          }
-        });
-      }
-    }
-    setupListener();
-
-    return () => {
-      if (unlistenDownload) {
-        unlistenDownload.then(f => f());
-        unlistenDownload = null;
-      }
-    };
   });
 
   async function loadData() {
@@ -136,7 +93,7 @@
 
     } catch (e) {
       console.error('Error exportando PDF:', e);
-      alert('Hubo un error al exportar el reporte. Verifique que exista template_membrete.pdf en la carpeta del sistema.');
+      alert('Hubo un error al exportar el reporte: ' + String(e));
     } finally {
       exporting = false;
     }
@@ -169,6 +126,41 @@
     }
   }
 
+  function openExpedienteModal() {
+    expedienteUrlInput = caso?.expediente_url || '';
+    showExpedienteModal = true;
+  }
+
+  // Añade https:// si el enlace se pegó sin protocolo (ej. "drive.google.com/...")
+  function normalizarUrl(url) {
+    const limpio = url.trim();
+    if (!limpio) return null;
+    return /^https?:\/\//i.test(limpio) ? limpio : `https://${limpio}`;
+  }
+
+  async function saveExpedienteUrl() {
+    savingExpedienteUrl = true;
+    try {
+      const url = normalizarUrl(expedienteUrlInput);
+      await casoService.update(id, { expediente_url: url });
+      caso.expediente_url = url;
+      showExpedienteModal = false;
+    } catch (e) {
+      alert('Error al guardar el enlace: ' + String(e));
+    } finally {
+      savingExpedienteUrl = false;
+    }
+  }
+
+  async function abrirExpedienteDigital() {
+    if (!caso?.expediente_url) return;
+    try {
+      await openUrl(caso.expediente_url);
+    } catch (e) {
+      alert('Error al abrir el expediente: ' + String(e));
+    }
+  }
+
   async function confirmDeleteCaso() {
     loading = true;
     try {
@@ -187,9 +179,9 @@
   open={showDeleteConfirm} 
   title="Eliminar Caso Permanentemente"
   message="¿Estás seguro de que deseas eliminar permanentemente este caso y todas sus actuaciones asociadas? Esta acción no se puede deshacer."
-  confirmText="Sí, Eliminar Caso"
-  cancelText="Cancelar"
-  danger={true}
+  confirmLabel="Sí, Eliminar Caso"
+  cancelLabel="Cancelar"
+  variant="danger"
   onconfirm={confirmDeleteCaso}
   oncancel={() => showDeleteConfirm = false}
 />
@@ -251,6 +243,22 @@
         {#if caso.contraparte}
           <p class="case-parties">Contra: {caso.contraparte}</p>
         {/if}
+        <div class="expediente-row">
+          {#if caso.expediente_url}
+            <button class="expediente-btn active" onclick={abrirExpedienteDigital}>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+              Ver Expediente Digital
+            </button>
+            <button class="expediente-edit-btn" onclick={openExpedienteModal} title="Editar enlace">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+            </button>
+          {:else}
+            <button class="expediente-btn add" onclick={openExpedienteModal}>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/><line x1="12" y1="11" x2="12" y2="17"/><line x1="9" y1="14" x2="15" y2="14"/></svg>
+              Añadir expediente digital +
+            </button>
+          {/if}
+        </div>
         <p class="case-client">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
           <a class="client-link" onclick={() => goto(`/clientes/${caso.cliente_id}`)}>{caso.cliente_display_name || 'Sin cliente'}</a>
@@ -281,7 +289,7 @@
             <div class="info-divider"></div>
             <div class="info-item full">
               <span class="info-label">Carpeta de Documentos</span>
-              <span class="info-value mono text-sm">~/Documents/Directorio_Casos/{caso.carpeta_documentos}</span>
+              <span class="info-value mono text-sm">Documentos/Directorio_Casos/{caso.carpeta_documentos}</span>
             </div>
           {/if}
         </div>
@@ -297,6 +305,26 @@
 </div>
 
 <CasoForm open={showEditForm} {caso} clientes={allClientes} onclose={() => showEditForm = false} onsave={() => { showEditForm = false; loadData(); }} />
+
+<Modal open={showExpedienteModal} title="Enlace al Expediente Digital" onclose={() => showExpedienteModal = false}>
+  <div style="display: flex; flex-direction: column; gap: var(--sp-4);">
+    <p style="font-size: 0.8125rem; color: var(--text-secondary); line-height: 1.5;">
+      Pega la URL del expediente digital del proceso (Google Drive, OneDrive, SharePoint, etc.).
+    </p>
+    <TextInput
+      label="URL del Expediente"
+      id="expediente_url_input"
+      bind:value={expedienteUrlInput}
+      placeholder="https://drive.google.com/..."
+    />
+    <div style="display: flex; justify-content: flex-end; gap: var(--sp-3); margin-top: var(--sp-2);">
+      <Button variant="ghost" onclick={() => showExpedienteModal = false}>Cancelar</Button>
+      <Button variant="primary" onclick={saveExpedienteUrl} disabled={savingExpedienteUrl}>
+        {savingExpedienteUrl ? 'Guardando...' : 'Guardar'}
+      </Button>
+    </div>
+  </div>
+</Modal>
 
 <style>
   .detail-page { display: flex; flex-direction: column; gap: var(--sp-5); }
@@ -344,4 +372,42 @@
   .info-value.mono { font-family: var(--font-mono); }
   .info-value.text-sm { font-size: 0.8125rem; }
   .info-divider { grid-column: 1 / -1; height: 1px; background: var(--border-subtle); }
+
+  /* Expediente Digital */
+  .expediente-row {
+    display: flex; align-items: center; gap: var(--sp-2);
+    margin-bottom: var(--sp-2);
+  }
+  .expediente-btn {
+    display: flex; align-items: center; gap: var(--sp-2);
+    padding: 5px 12px; border-radius: var(--radius-md);
+    font-size: 0.8125rem; font-weight: 500; cursor: pointer;
+    border: 1px solid var(--border-subtle);
+    transition: all var(--ease-fast); font-family: var(--font-sans);
+  }
+  .expediente-btn.add {
+    background: transparent; color: var(--text-secondary);
+  }
+  .expediente-btn.add:hover {
+    background: var(--bg-hover); color: var(--text-primary);
+    border-color: var(--border-default);
+  }
+  .expediente-btn.active {
+    background: var(--accent-blue-soft, rgba(56, 139, 253, 0.1));
+    color: var(--accent-blue); border-color: var(--accent-blue-soft, rgba(56, 139, 253, 0.2));
+  }
+  .expediente-btn.active:hover {
+    background: var(--accent-blue-soft, rgba(56, 139, 253, 0.18));
+  }
+  .expediente-edit-btn {
+    display: flex; align-items: center; justify-content: center;
+    width: 28px; height: 28px; border-radius: var(--radius-sm);
+    background: transparent; border: 1px solid transparent;
+    color: var(--text-muted); cursor: pointer;
+    transition: all var(--ease-fast);
+  }
+  .expediente-edit-btn:hover {
+    background: var(--bg-hover); color: var(--text-primary);
+    border-color: var(--border-subtle);
+  }
 </style>

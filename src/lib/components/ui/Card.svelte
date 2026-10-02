@@ -1,8 +1,8 @@
 <script>
-  let { padding = 'md', children } = $props();
+  let { padding = 'md', children, ...rest } = $props();
 </script>
 
-<div class="card card-pad-{padding}">
+<div class="card card-pad-{padding}" {...rest}>
   {@render children()}
 </div>
 

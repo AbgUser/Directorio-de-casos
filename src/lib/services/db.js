@@ -18,6 +18,26 @@ export async function initDb(password) {
     } catch(e) {
       // Ignorar error. Significa que la columna ya existe.
     }
+
+    // Parche seguro: Crear tabla modelos_legales si no existe en bases de datos antiguas
+    try {
+      await invoke('db_execute', { query: `CREATE TABLE IF NOT EXISTS modelos_legales (
+        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+        nombre          TEXT NOT NULL,
+        tipo            TEXT NOT NULL,
+        ruta_archivo    TEXT NOT NULL,
+        created_at      TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
+      )`, params: [] });
+    } catch(e) {
+      console.warn('Parche modelos_legales:', e);
+    }
+
+    // Parche seguro: Añadir columna expediente_url a casos si no existe
+    try {
+      await invoke('db_execute', { query: "ALTER TABLE casos ADD COLUMN expediente_url TEXT", params: [] });
+    } catch(e) {
+      // Ignorar error. Significa que la columna ya existe.
+    }
   }
   return success;
 }

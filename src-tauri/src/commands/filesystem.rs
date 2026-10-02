@@ -9,6 +9,18 @@ use std::process::Command;
 use serde::Serialize;
 use std::time::SystemTime;
 
+/// Normaliza una ruta para el sistema operativo actual.
+/// El frontend arma rutas con '/', pero el Explorador de Windows no
+/// las entiende (abre otra carpeta o no hace nada), así que en Windows
+/// se convierten a '\'. En macOS/Linux la ruta queda igual.
+pub fn ruta_nativa(path: &str) -> String {
+    if cfg!(target_os = "windows") {
+        path.replace('/', "\\")
+    } else {
+        path.to_string()
+    }
+}
+
 #[derive(Serialize)]
 pub struct DocumentoFisico {
     pub id: String,
@@ -30,6 +42,7 @@ pub struct DocumentoFisico {
 /// - **Linux**: Ejecuta `xdg-open` sobre el directorio padre.
 #[tauri::command]
 pub fn open_in_finder(path: String) -> Result<(), String> {
+    let path = ruta_nativa(&path);
     if !std::path::Path::new(&path).exists() {
         return Err("El archivo físico fue eliminado del disco o movido de su ubicación original.".into());
     }
@@ -44,8 +57,11 @@ pub fn open_in_finder(path: String) -> Result<(), String> {
 
     #[cfg(target_os = "windows")]
     {
+        // explorer necesita la ruta entre comillas literales tras /select,
+        // (con .arg() Rust la entrecomilla completa y falla con espacios).
+        use std::os::windows::process::CommandExt;
         Command::new("explorer")
-            .arg(format!("/select,{}", &path))
+            .raw_arg(format!("/select,\"{}\"", &path))
             .spawn()
             .map_err(|e| format!("Error al abrir en Explorer: {}", e))?;
     }
@@ -76,6 +92,7 @@ pub fn open_in_finder(path: String) -> Result<(), String> {
 /// - **Linux**: Ejecuta `xdg-open <path>`.
 #[tauri::command]
 pub fn abrir_documento(path: String) -> Result<(), String> {
+    let path = ruta_nativa(&path);
     if !std::path::Path::new(&path).exists() {
         return Err("El archivo físico fue eliminado del disco o movido de su ubicación original.".into());
     }
@@ -113,13 +130,14 @@ pub fn abrir_documento(path: String) -> Result<(), String> {
 ///
 /// # Comportamiento por plataforma
 /// - **macOS**: Ejecuta `lp <path>` (envía a la impresora predeterminada).
-/// - **Windows**: Ejecuta `print <path>`.
+/// - **Windows**: Ejecuta `Start-Process -Verb Print` vía PowerShell.
 ///
 /// # Nota
 /// En macOS, el archivo se envía directamente a la cola de impresión.
 /// Para elegir impresora, usar el diálogo de impresión del frontend.
 #[tauri::command]
 pub fn imprimir_documento(path: String) -> Result<(), String> {
+    let path = ruta_nativa(&path);
     if !std::path::Path::new(&path).exists() {
         return Err("El archivo físico fue eliminado del disco o movido de su ubicación original.".into());
     }
@@ -135,8 +153,17 @@ pub fn imprimir_documento(path: String) -> Result<(), String> {
 
     #[cfg(target_os = "windows")]
     {
-        Command::new("cmd")
-            .args(["/C", "print", &path])
+        // `print` de cmd solo sirve para texto plano; Start-Process -Verb Print
+        // usa la aplicación asociada (PDF, Word, etc.).
+        let ps_path = path.replace('\'', "''");
+        Command::new("powershell")
+            .args([
+                "-NoProfile",
+                "-WindowStyle",
+                "Hidden",
+                "-Command",
+                &format!("Start-Process -FilePath '{}' -Verb Print", ps_path),
+            ])
             .spawn()
             .map_err(|e| format!("Error al imprimir archivo: {}", e))?;
     }
@@ -244,6 +271,9 @@ pub fn generate_slug(name: String) -> String {
     }
 
     // Eliminar guión final si existe
+    if result.ends_with('-') {
+        result.pop();
+    }
     result
 }
 

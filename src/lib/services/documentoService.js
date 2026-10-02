@@ -1,7 +1,7 @@
 import { getDb } from './db.js';
-import { copyFile, stat, exists, mkdir } from '@tauri-apps/plugin-fs';
 import { invoke } from '@tauri-apps/api/core';
 import { documentDir } from '@tauri-apps/api/path';
+import { getFileName } from '../utils/formatters.js';
 
 /**
  * Obtiene la ruta base de documentos: <DocumentDir>/Directorio_Casos/
@@ -63,20 +63,16 @@ export async function upload(casoId, filePaths) {
   const destDir = `${basePath}${carpetaDocumentos}`;
 
   // Asegurar que la carpeta destino existe
-  const dirExists = await exists(destDir);
-  if (!dirExists) {
-    await mkdir(destDir, { recursive: true });
-  }
+  await invoke('create_directory', { path: destDir });
 
   const insertedIds = [];
 
   for (const filePath of filePaths) {
-    // Extraer nombre del archivo de la ruta
-    const fileName = filePath.split('/').pop() || filePath.split('\\').pop();
-    const destPath = `${destDir}/${fileName}`;
+    const destPath = `${destDir}/${getFileName(filePath)}`;
 
-    // Copiar archivo físicamente
-    await copyFile(filePath, destPath);
+    // Copia nativa desde Rust: el plugin-fs solo permite rutas dentro de
+    // Documentos/AppData, y los archivos suelen venir de Descargas o Escritorio.
+    await invoke('copy_file_native', { source: filePath, dest: destPath });
     insertedIds.push(1); // Mantenemos el retorno array para Svelte
   }
 
@@ -105,6 +101,17 @@ export async function openFile(rutaAbsoluta) {
  */
 export async function openInFinder(rutaAbsoluta) {
   await invoke('open_in_finder', { path: rutaAbsoluta });
+}
+
+/**
+ * Abre la carpeta del expediente en Finder/Explorer.
+ * @param {string} carpetaRelativa - Ruta relativa dentro de Directorio_Casos
+ */
+export async function openFolder(carpetaRelativa) {
+  const basePath = await getBasePath();
+  const ruta = `${basePath}${carpetaRelativa}`;
+  await invoke('create_directory', { path: ruta });
+  await invoke('abrir_documento', { path: ruta });
 }
 
 /**
